@@ -1,14 +1,12 @@
 // src/index.ts
-import "./instrument"; // Import at the very top
+import "./instrument"; // Must be first import
 import * as Sentry from "@sentry/node";
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
+import { config } from "./config/app";
 import { setupDocs } from "./middleware/docs";
-
-// Load environment variables
-dotenv.config();
+import authRoutes from "./routes/auth";
 
 const app = express();
 
@@ -17,43 +15,47 @@ app.use(cors());
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Setup API documentation
 setupDocs(app);
 
-// Basic route
+// Routes
+app.use("/auth", authRoutes);
+
+// Basic health check route
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({
+    status: "ok",
+    timestamp: new Date(),
+    environment: config.app.env,
+  });
 });
 
-// Test Sentry route
+// Test Sentry
 app.get("/debug-sentry", function mainHandler(req, res) {
   throw new Error("My first Sentry error!");
 });
 
-// The error handler must be registered before any other error middleware
+// The error handler must be registered before any other error middleware and after all controllers
 Sentry.setupExpressErrorHandler(app);
 
 // Optional fallthrough error handler
-app.use(
-  (
-    err: Error,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ) => {
-    // The error id is attached to `res.sentry` to be returned
-    res.statusCode = 500;
-    res.end((res as any).sentry + "\n");
-  }
-);
+app.use(function onError(
+  err: Error,
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  // The error id is attached to res.sentry to be returned
+  res.statusCode = 500;
+  res.end(res.sentry + "\n");
+});
 
 // Start server
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const server = app.listen(config.app.port, () => {
+  console.log(
+    `🚀 Server running on port ${config.app.port} in ${config.app.env} mode`
+  );
 });
 
-// Handle unhandled rejections
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  Sentry.captureException(reason);
-});
+export default server;

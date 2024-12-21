@@ -15,3 +15,27 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
         
+        // prisma/schema.prisma
+
+model UserProfile {
+  id         String    @id
+  email      String    @unique
+  firstName  String
+  lastName   String
+  phone      String?
+  role       Role      @default(USER)
+  isActive   Boolean   @default(true)
+  lastLogin  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("user_profiles")
+}
+
+enum Role {
+  USER
+  CCA
+  CCM
+  ADMIN
+  SUDO
+}

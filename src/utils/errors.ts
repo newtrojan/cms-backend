@@ -1,6 +1,4 @@
 // src/utils/errors.ts
-import * as Sentry from "@sentry/node";
-
 export class AppError extends Error {
   statusCode: number;
   status: string;
@@ -15,11 +13,3 @@ export class AppError extends Error {
     Error.captureStackTrace(this, this.constructor);
   }
 }
-
-export const handleError = (error: Error) => {
-  Sentry.captureException(error);
-
-  if (process.env.NODE_ENV === "development") {
-    console.error("Error:", error);
-  }
-};
