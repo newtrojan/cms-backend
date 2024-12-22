@@ -32,7 +32,7 @@ export class AuthController {
 
       // Create user profile
       const { data: profileData, error: profileError } = await supabase
-        .from("user_profiles")
+        .from("users") // Changed from user_profiles to users
         .insert({
           id: authData.user!.id,
           email,
@@ -40,7 +40,8 @@ export class AuthController {
           last_name: lastName,
           phone,
           role: role || "USER",
-          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date(),
         })
         .single();
 
@@ -61,20 +62,40 @@ export class AuthController {
     try {
       const { email, password }: LoginRequest = req.body;
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Authenticate with Supabase
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      if (error) throw new AppError(error.message, 401);
+      if (authError) throw new AppError(authError.message, 401);
 
-      // Update last login
+      // Fetch user profile including role
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", authData.user.id)
+        .single();
+
+      if (userError) throw new AppError(userError.message, 400);
+
+      // Update last sign in
       await supabase
-        .from("user_profiles")
-        .update({ last_login: new Date() })
-        .eq("id", data.user.id);
+        .from("users")
+        .update({ updated_at: new Date() })
+        .eq("id", authData.user.id);
 
-      return ApiResponse.success(res, data, "Login successful");
+      // Combine auth data with user profile
+      const responseData = {
+        user: {
+          ...authData.user,
+          ...userData, // This will include the role
+        },
+        session: authData.session,
+      };
+
+      return ApiResponse.success(res, responseData, "Login successful");
     } catch (error) {
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
@@ -94,9 +115,17 @@ export class AuthController {
 
   static async getProfile(req: AuthenticatedRequest, res: Response) {
     try {
+      const { data: profile, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", req.user.id)
+        .single();
+
+      if (error) throw new AppError(error.message, 400);
+
       return ApiResponse.success(
         res,
-        req.user,
+        profile,
         "Profile retrieved successfully"
       );
     } catch (error) {
@@ -109,7 +138,7 @@ export class AuthController {
       const { firstName, lastName, phone }: UpdateProfileRequest = req.body;
 
       const { data, error } = await supabase
-        .from("user_profiles")
+        .from("users") // Changed from user_profiles to users
         .update({
           first_name: firstName,
           last_name: lastName,
